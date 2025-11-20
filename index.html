@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Limpiar Imagen con Autoencoder</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <style>
+        /* Reset and Global Styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f9f9f9;
+            color: #333;
+            padding: 40px 10px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #4CAF50;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        .upload-container {
+            background-color: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+            margin-bottom: 30px;
+        }
+
+            .upload-container input[type="file"] {
+                padding: 12px 15px;
+                margin-bottom: 15px;
+                border: 2px solid #ddd;
+                border-radius: 5px;
+                background-color: #f4f4f4;
+            }
+
+            .upload-container button {
+                background-color: #4CAF50;
+                color: white;
+                padding: 15px 25px;
+                border: none;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 1rem;
+                transition: background-color 0.3s ease;
+            }
+
+                .upload-container button:hover {
+                    background-color: #45a049;
+                }
+
+        .output-container {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+            .output-container h2 {
+                font-size: 1.5rem;
+                margin: 20px 0;
+                color: #555;
+            }
+
+            .output-container img {
+                max-width: 100%;
+                border-radius: 10px;
+                margin: 10px 0;
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            }
+
+        /* Responsiveness */
+        @media screen and (max-width: 768px) {
+            .upload-container {
+                padding: 20px;
+                width: 90%;
+            }
+
+            h1 {
+                font-size: 2rem;
+            }
+
+            .output-container h2 {
+                font-size: 1.25rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Limpiar Imagen con Autoencoder</h1>
+
+    <!-- Upload Section -->
+    <div class="upload-container">
+        <input type="file" id="imageUpload" accept="image/*">
+        <button onclick="processImage()">Limpiar Imagen</button>
+    </div>
+
+    <!-- Output Section -->
+    <div class="output-container">
+        <h2>Imagen Original</h2>
+        <img id="originalImage" src="" alt="Imagen Original">
+
+        <h2>Imagen Limpiada</h2>
+        <img id="cleanedImage" src="" alt="Imagen Limpiada">
+    </div>
+
+    <script>
+        // Cargar el modelo de TensorFlow.js
+        let model;
+        async function loadModel() {
+            model = await tf.loadLayersModel('model/model.json');
+            console.log("Modelo cargado");
+        }
+
+        loadModel();
+
+        // Función para procesar la imagen
+        async function processImage() {
+            const fileInput = document.getElementById('imageUpload');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                alert("Por favor, selecciona una imagen.");
+                return;
+            }
+
+            // Mostrar la imagen original
+            const reader = new FileReader();
+            reader.onloadend = function () {
+                document.getElementById('originalImage').src = reader.result;
+            };
+            reader.readAsDataURL(file);
+
+            const image = new Image();
+            image.src = reader.result;
+
+            image.onload = async function () {
+                // Asegurarse de que la imagen sea de 32x32 píxeles y que tenga 3 canales (RGB)
+                const tensor = tf.browser.fromPixels(image)
+                    .resizeNearestNeighbor([32, 32]) // Redimensionar a 32x32
+                    .toFloat() // Convertir valores a flotantes
+                    .div(tf.scalar(255)) // Normalizar a 0-1
+                    .expandDims(0); // Añadir dimensión de batch (modelo espera [batch_size, 32, 32, 3])
+
+                // Usar el modelo para predecir la imagen limpia
+                try {
+                    const cleanedImageTensor = await model.predict(tensor);
+
+                    // Asegurarse de que el tensor tiene la forma correcta y convertirlo a una imagen
+                    const cleanedImage = await tf.browser.toPixels(cleanedImageTensor.squeeze());
+                    const canvas = document.createElement('canvas');
+                    canvas.width = 32;
+                    canvas.height = 32;
+                    const ctx = canvas.getContext('2d');
+                    ctx.putImageData(cleanedImage, 0, 0);
+
+                    // Mostrar la imagen limpiada
+                    document.getElementById('cleanedImage').src = canvas.toDataURL();
+                } catch (error) {
+                    console.error("Error en la predicción del modelo:", error);
+                }
+            };
+        }
+    </script>
+</body>
+</html>
+
